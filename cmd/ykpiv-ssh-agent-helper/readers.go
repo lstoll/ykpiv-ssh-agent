@@ -21,7 +21,21 @@ func readersCmd(app *kingpin.Application) (*kingpin.CmdClause, func() error) {
 			return fmt.Errorf("No readers found in system")
 		}
 		for _, r := range rdrs {
-			fmt.Printf("%s\n", r)
+			yk, err := ykpiv.New(ykpiv.Options{
+				// Verbose: true,
+				Reader: r,
+			})
+			if err != nil {
+				return fmt.Errorf("error opening reader %s: %w", r, err)
+			}
+			defer yk.Close()
+
+			version, err := yk.Version()
+			if err != nil {
+				return fmt.Errorf("error getting version %s: %w", r, err)
+			}
+
+			fmt.Printf("%q Version: %s\n", r, version)
 		}
 		return nil
 	}
