@@ -12,12 +12,15 @@ func main() {
 	)
 
 	readersC, readers := readersCmd(app)
+	initializeC, initialize := initializeCmd(app)
 
 	var err error
 
 	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
 	case readersC.FullCommand():
 		err = readers()
+	case initializeC.FullCommand():
+		err = initialize()
 	}
 
 	app.FatalIfError(err, "Command failed")
