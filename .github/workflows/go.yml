@@ -18,6 +18,7 @@ jobs:
 
     - name: Get dependencies
       run: |
+        apt-get update && apt-get install -y libykpiv-dev
         go mod download
 
     - name: Build
