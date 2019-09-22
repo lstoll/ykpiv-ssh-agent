@@ -13,6 +13,7 @@ func main() {
 
 	readersC, readers := readersCmd(app)
 	initializeC, initialize := initializeCmd(app)
+	publickeyC, publickey := publickeyCmd(app)
 
 	var err error
 
@@ -21,6 +22,8 @@ func main() {
 		err = readers()
 	case initializeC.FullCommand():
 		err = initialize()
+	case publickeyC.FullCommand():
+		err = publickey()
 	}
 
 	app.FatalIfError(err, "Command failed")
