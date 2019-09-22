@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/lstoll/ykpiv-ssh-agent/internal/yubikey"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"pault.ag/go/ykpiv"
@@ -16,10 +17,7 @@ func publickeyCmd(app *kingpin.Application) (*kingpin.CmdClause, func() error) {
 	)
 
 	return publickey, func() error {
-		opts := ykpiv.Options{
-			// PIN:           &pin,
-		}
-		yk, err := getInstance(*reader, &opts)
+		yk, err := yubikey.GetForRead(*reader)
 		if err != nil {
 			return err
 		}

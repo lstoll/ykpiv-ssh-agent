@@ -4,11 +4,11 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"time"
 
+	"github.com/lstoll/ykpiv-ssh-agent/internal/yubikey"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"pault.ag/go/ykpiv"
 )
@@ -23,25 +23,11 @@ func initializeCmd(app *kingpin.Application) (*kingpin.CmdClause, func() error) 
 	)
 
 	return initialize, func() error {
-		mb, err := hex.DecodeString(*managementKey)
-		if err != nil {
-			return fmt.Errorf("failed decoding management key %s: %w", *managementKey, err)
-		}
-		pin := "123456"
-		puk := "12345678"
-		opts := ykpiv.Options{
-			ManagementKey: mb,
-			PIN:           &pin,
-			PUK:           &puk,
-		}
-		yk, err := getInstance(*reader, &opts)
+		yk, err := yubikey.GetForManagement(*reader, *managementKey)
 		if err != nil {
 			return err
 		}
 		defer yk.Close()
-		if err := yk.Authenticate(); err != nil {
-			return fmt.Errorf("failed authenticating yubikey. Check management key?: %w", err)
-		}
 
 		_, err = yk.Slot(ykpiv.Authentication)
 		yerr, _ := err.(ykpiv.Error)
