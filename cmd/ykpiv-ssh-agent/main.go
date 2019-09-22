@@ -166,6 +166,9 @@ func (s *ykagent) Signers() ([]ssh.Signer, error) {
 }
 
 func (s *ykagent) getSlot() (slot *ykpiv.Slot, closer func() error, err error) {
+	// I'm not 100% sure that we need to open/close on each usage, need to
+	// investigate how the underlying library manages locking and concurrent
+	// consumers of the key. In the mean time, err on the side of caution
 	s.ykl.Lock()
 	yk, err := yubikey.GetForUsage("", "123456")
 	if err != nil {
