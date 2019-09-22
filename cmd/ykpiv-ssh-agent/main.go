@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 
 	"github.com/lstoll/ykpiv-ssh-agent/internal/yubikey"
@@ -21,18 +22,7 @@ import (
 )
 
 func main() {
-	yk, err := yubikey.GetForUsage("", "123456")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer yk.Close()
-	sl, err := yk.Slot(ykpiv.Authentication)
-	if err != nil {
-		log.Fatalf("error getting auth slot: %s", err)
-	}
-	ag := &ykagent{
-		slot: sl,
-	}
+	ag := &ykagent{}
 
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
@@ -56,14 +46,16 @@ func main() {
 
 	log.Printf("Listening at: %s", agentSock)
 
-	newConns := make(chan net.Conn)
+	newConns := make(chan net.Conn, 1)
 	go func() {
-		c, err := agentLis.Accept()
-		if err != nil {
-			log.Printf("failed to accept incoming agent connection: %v", err)
-			return
+		for {
+			c, err := agentLis.Accept()
+			if err != nil {
+				log.Printf("failed to accept incoming agent connection: %v", err)
+				return
+			}
+			newConns <- c
 		}
-		newConns <- c
 	}()
 
 	for {
@@ -86,13 +78,18 @@ func main() {
 var _ agent.Agent = (*ykagent)(nil)
 
 type ykagent struct {
-	// privKey is the users private key
-	slot *ykpiv.Slot
+	ykl sync.Mutex
 }
 
 // List returns the identities known to the agent.
 func (s *ykagent) List() ([]*agent.Key, error) {
-	pk, err := ssh.NewPublicKey(s.slot.Public())
+	sl, ykcl, err := s.getSlot()
+	if err != nil {
+		return nil, err
+	}
+	defer ykcl()
+
+	pk, err := ssh.NewPublicKey(sl.Public())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SSH key from slot public key: %w", err)
 	}
@@ -110,7 +107,13 @@ func (s *ykagent) List() ([]*agent.Key, error) {
 // Sign has the agent sign the data using a protocol 2 key as defined
 // in [PROTOCOL.agent] section 2.6.2.
 func (s *ykagent) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
-	pk, err := ssh.NewPublicKey(s.slot.Public())
+	sl, ykcl, err := s.getSlot()
+	if err != nil {
+		return nil, err
+	}
+	defer ykcl()
+
+	pk, err := ssh.NewPublicKey(sl.Public())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SSH key from slot public key: %w", err)
 	}
@@ -119,7 +122,7 @@ func (s *ykagent) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
 		return nil, fmt.Errorf("can't sign for this key")
 	}
 
-	ykSigner, err := ssh.NewSignerFromSigner(s.slot)
+	ykSigner, err := ssh.NewSignerFromSigner(sl)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create signer: %w", err)
 	}
@@ -160,4 +163,22 @@ func (s *ykagent) Unlock(passphrase []byte) error {
 // Signers returns signers for all the known keys.
 func (s *ykagent) Signers() ([]ssh.Signer, error) {
 	panic("This should not be called - for client implementations only?")
+}
+
+func (s *ykagent) getSlot() (slot *ykpiv.Slot, closer func() error, err error) {
+	s.ykl.Lock()
+	yk, err := yubikey.GetForUsage("", "123456")
+	if err != nil {
+		return nil, nil, err
+	}
+	sl, err := yk.Slot(ykpiv.Authentication)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get slot: %w", err)
+	}
+	closer = func() error {
+		err := yk.Close()
+		s.ykl.Unlock()
+		return err
+	}
+	return sl, closer, nil
 }
