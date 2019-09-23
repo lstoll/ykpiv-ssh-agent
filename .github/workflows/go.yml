@@ -22,7 +22,7 @@ jobs:
         curl -sLO https://developers.yubico.com/yubico-piv-tool/Releases/yubico-piv-tool-1.7.0.tar.gz
         tar -zxvf yubico-piv-tool-1.7.0.tar.gz
         cd yubico-piv-tool-1.7.0
-        ./configure
+        ./configure --prefix=/usr
         make
         sudo make install
 
