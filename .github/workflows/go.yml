@@ -16,9 +16,18 @@ jobs:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v1
 
+    - name: Install yubico-piv-tool
+      run: |
+        sudo apt-get update && sudo apt-get install -y build-essential check libpcsclite-dev
+        curl -sLO https://developers.yubico.com/yubico-piv-tool/Releases/yubico-piv-tool-1.7.0.tar.gz
+        tar -zxvf yubico-piv-tool-1.7.0.tar.gz
+        cd yubico-piv-tool-1.7.0
+        ./configure --prefix=/usr
+        make
+        sudo make install
+
     - name: Get dependencies
       run: |
-        apt-get update && apt-get install -y libykpiv-dev
         go mod download
 
     - name: Build
